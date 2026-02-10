@@ -55,10 +55,6 @@ func (c *ImpactedWorkloadsCheck) validateCR(
 		cr.annotations[annotationOrchestratorConfig] = "not set"
 	}
 
-	if sr.replicasFail {
-		cr.annotations[annotationReplicas] = "less than 1"
-	}
-
 	// Combined gateway: two sub-fields merged into one annotation with detailed description.
 	if sr.gatewayFail || sr.gatewayConfigFail {
 		var details []string
@@ -103,7 +99,6 @@ func (c *ImpactedWorkloadsCheck) validateCR(
 type specResult struct {
 	config            crConfig
 	orchConfigFail    bool
-	replicasFail      bool
 	gatewayFail       bool
 	detectorsFail     bool
 	gatewayConfigFail bool
@@ -115,7 +110,6 @@ func (c *ImpactedWorkloadsCheck) validateCRSpec(obj *unstructured.Unstructured) 
 	var r specResult
 
 	r.config.orchestratorConfigName, r.orchConfigFail = c.checkStringFieldMissing(obj, ".spec.orchestratorConfig")
-	r.replicasFail = c.checkReplicasInvalid(obj)
 	r.gatewayFail = c.checkBoolNotTrue(obj, ".spec.enableGuardrailsGateway")
 	r.detectorsFail = c.checkBoolNotTrue(obj, ".spec.enableBuiltInDetectors")
 	r.config.gatewayConfigName, r.gatewayConfigFail = c.checkStringFieldMissing(obj, ".spec.guardrailsGatewayConfig")
@@ -144,13 +138,6 @@ func (c *ImpactedWorkloadsCheck) checkBoolNotTrue(
 	val, err := jq.Query[bool](obj, query)
 
 	return err != nil || !val
-}
-
-// checkReplicasInvalid returns true if replicas is missing or less than 1.
-func (c *ImpactedWorkloadsCheck) checkReplicasInvalid(obj *unstructured.Unstructured) bool {
-	replicas, err := jq.Query[float64](obj, ".spec.replicas")
-
-	return err != nil || replicas < 1
 }
 
 // validateOrchestratorConfigMap validates the orchestrator ConfigMap's config.yaml content.
@@ -247,10 +234,13 @@ func (c *ImpactedWorkloadsCheck) validateGatewayConfigMap(
 }
 
 // newConfigurationCondition creates a single consolidated condition for all
-// GuardrailsOrchestrator configuration validation.
+// GuardrailsOrchestrator configuration validation. When there are impacted
+// resources, the message lists which GuardrailsOrchestrator instances and
+// ConfigMaps are incorrect.
 func (c *ImpactedWorkloadsCheck) newConfigurationCondition(
 	total int,
 	impacted int,
+	dr *result.DiagnosticResult,
 ) result.Condition {
 	if total == 0 {
 		return check.NewCondition(
@@ -270,11 +260,38 @@ func (c *ImpactedWorkloadsCheck) newConfigurationCondition(
 		)
 	}
 
+	// Build message listing which instances and configmaps are incorrect.
+	var orchRefs, cmRefs []string
+	for _, o := range dr.ImpactedObjects {
+		ref := o.Namespace + "/" + o.Name
+		switch o.Kind {
+		case "GuardrailsOrchestrator":
+			if len(o.Annotations) > 0 {
+				var issues []string
+				for _, v := range o.Annotations {
+					issues = append(issues, v)
+				}
+				ref += " (" + strings.Join(issues, "; ") + ")"
+			}
+			orchRefs = append(orchRefs, ref)
+		case "ConfigMap":
+			if issues := o.Annotations[annotationIssues]; issues != "" {
+				ref = ref + " (" + issues + ")"
+			}
+			cmRefs = append(cmRefs, ref)
+		}
+	}
+	msg := fmt.Sprintf("Found %d misconfigured GuardrailsOrchestrator(s)", impacted)
+	if len(orchRefs) > 0 {
+		msg += ":\n\n" + strings.Join(orchRefs, "\n\n")
+	}
+	msg += "."
+
 	return check.NewCondition(
 		ConditionTypeConfigurationValid,
 		metav1.ConditionFalse,
 		check.WithReason(check.ReasonConfigurationInvalid),
-		check.WithMessage("Found %d misconfigured GuardrailsOrchestrator(s)", impacted),
+		check.WithMessage("%s", msg),
 		check.WithImpact(result.ImpactAdvisory),
 		check.WithRemediation(c.CheckRemediation),
 	)

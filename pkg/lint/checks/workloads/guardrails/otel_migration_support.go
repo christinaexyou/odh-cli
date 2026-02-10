@@ -3,6 +3,8 @@ package guardrails
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -43,11 +45,18 @@ func (c *OtelMigrationCheck) newOtelMigrationCondition(
 		)}, nil
 	}
 
+	refs := make([]string, 0, count)
+	for _, obj := range req.Items {
+		refs = append(refs, obj.GetNamespace()+"/"+obj.GetName())
+	}
+	msg := fmt.Sprintf("Found %d GuardrailsOrchestrator(s) using deprecated otelExporter fields - migrate to new format before upgrading:\n\n%s",
+		count, strings.Join(refs, "\n\n"))
+
 	return []result.Condition{check.NewCondition(
 		ConditionTypeOtelConfigCompatible,
 		metav1.ConditionFalse,
 		check.WithReason(check.ReasonConfigurationInvalid),
-		check.WithMessage("Found %d GuardrailsOrchestrator(s) using deprecated otelExporter fields - migrate to new format before upgrading", count),
+		check.WithMessage("%s", msg),
 		check.WithImpact(result.ImpactAdvisory),
 	)}, nil
 }

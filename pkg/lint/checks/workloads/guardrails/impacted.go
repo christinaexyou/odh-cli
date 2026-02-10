@@ -22,7 +22,6 @@ const (
 
 const (
 	annotationOrchestratorConfig = "guardrails.opendatahub.io/orchestrator-config"
-	annotationReplicas           = "guardrails.opendatahub.io/replicas"
 	annotationGatewayConfig      = "guardrails.opendatahub.io/gateway-config"
 	annotationBuiltinDetectors   = "guardrails.opendatahub.io/builtin-detectors"
 	annotationOrchestratorCM     = "guardrails.opendatahub.io/orchestrator-configmap"
@@ -100,7 +99,7 @@ func (c *ImpactedWorkloadsCheck) Validate(
 	}
 
 	dr.Status.Conditions = append(dr.Status.Conditions,
-		c.newConfigurationCondition(total, impactedCRs),
+		c.newConfigurationCondition(total, impactedCRs, dr),
 	)
 
 	dr.Annotations[check.AnnotationImpactedWorkloadCount] = strconv.Itoa(len(dr.ImpactedObjects))

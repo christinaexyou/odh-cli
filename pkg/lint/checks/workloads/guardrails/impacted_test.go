@@ -186,7 +186,6 @@ func TestImpactedWorkloadsCheck_InvalidCRSpec(t *testing.T) {
 	// Impacted object annotations describe the specific issues.
 	g.Expect(result.ImpactedObjects[0].Annotations).To(And(
 		HaveKeyWithValue("guardrails.opendatahub.io/orchestrator-config", "not set"),
-		HaveKeyWithValue("guardrails.opendatahub.io/replicas", "less than 1"),
 		HaveKeyWithValue("guardrails.opendatahub.io/gateway-config",
 			"enableGuardrailsGateway not enabled; guardrailsGatewayConfig not set"),
 		HaveKeyWithValue("guardrails.opendatahub.io/builtin-detectors", "not enabled"),

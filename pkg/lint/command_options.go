@@ -361,7 +361,7 @@ func OutputTable(out io.Writer, results []check.CheckExecution) error {
 
 	_, _ = fmt.Fprintln(out)
 	_, _ = fmt.Fprintln(out, "Summary:")
-	_, _ = fmt.Fprintf(out, "  Total: %d | Passed: %d | Warnings: %d | Failed: %d\n", totalChecks, totalPassed, totalWarnings, totalFailed)
+	_, _ = fmt.Fprintf(out, "  Total Checks: %d | Passed: %d | Warnings: %d | Failed: %d\n", totalChecks, totalPassed, totalWarnings, totalFailed)
 
 	return nil
 }
